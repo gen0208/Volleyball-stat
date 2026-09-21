@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.json">
+<title>Volleyball Stats</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;background:#f3f4f6}
+*{box-sizing:border-box}body{margin:0}.app{max-width:1100px;margin:auto;padding:14px}
+h1{font-size:24px;margin:4px 0}.sub{color:#6b7280;font-size:13px;margin-bottom:12px}
+.tabs,.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+button,input,select{font:inherit}button{min-height:44px;border:1px solid #d1d5db;border-radius:10px;background:white;padding:8px 12px;font-weight:650;cursor:pointer}button.primary{background:#111827;color:white;border-color:#111827}
+button.danger{color:#b91c1c}.panel{background:white;border:1px solid #e5e7eb;border-radius:14px;padding:12px;margin-bottom:12px}
+.tablewrap{overflow:auto}.stats{border-collapse:separate;border-spacing:0;min-width:780px;width:100%}
+.stats th,.stats td{border-bottom:1px solid #e5e7eb;padding:7px;text-align:center}.stats th{font-size:12px;color:#6b7280}
+.stats th:first-child,.stats td:first-child{position:sticky;left:0;background:white;text-align:left;z-index:2}.player{font-weight:750;white-space:nowrap}
+.num{font-size:18px;font-weight:800}.mini{display:flex;gap:5px;justify-content:center;margin-top:5px}.mini button{min-width:40px;height:40px;padding:0;font-size:21px}
+.total{font-weight:800;font-size:19px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;text-align:center}.big{font-size:28px;font-weight:850}
+.list{display:grid;gap:8px}.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #eee}.row:last-child{border-bottom:0}
+.edit{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:8px}.edit input,.session input,.session select{width:100%;min-height:44px;border:1px solid #d1d5db;border-radius:9px;padding:8px 10px;background:white}
+.hidden{display:none}.sessionbar{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.small{font-size:12px;color:#6b7280}.badge{display:inline-block;border-radius:999px;padding:4px 8px;background:#f3f4f6;font-size:12px}
+@media(min-width:700px){.cards{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+<h1>🏐 Volleyball Stats</h1>
+<div class="sub">Statistiques en direct • sauvegarde automatique sur cet appareil</div>
+
+<div class="tabs">
+<button class="primary" data-tab="stats">Statistiques</button>
+<button data-tab="summary">Résumé</button>
+<button data-tab="sessions">Historique</button>
+<button data-tab="settings">Joueuses / techniques</button>
+</div>
+
+<section id="stats">
+<div class="panel session">
+<div class="sessionbar">
+<div><div class="small">Séance actuelle</div><input id="sessionName" placeholder="Ex. Entraînement du 21 septembre"></div>
+<button class="primary" id="newSession">Nouvelle séance</button>
+</div>
+</div>
+<div class="toolbar">
+<button class="primary" id="addPlayer">+ Ajouter une joueuse</button>
+<button id="reset">↺ Remettre à zéro</button>
+</div>
+<div class="panel">
+<div class="tablewrap"><table class="stats"><thead><tr id="head"></tr></thead><tbody id="body"></tbody></table></div>
+</div>
+</section>
+
+<section id="summary" class="hidden">
+<div class="cards" id="cards"></div>
+<div class="panel"><h3>Total par technique</h3><div class="list" id="techTotals"></div></div>
+<div class="panel"><h3>Total par joueuse</h3><div class="list" id="playerTotals"></div></div>
+</section>
+
+<section id="sessions" class="hidden">
+<div class="panel"><h3>Historique des séances</h3><div class="list" id="history"></div></div>
+</section>
+
+<section id="settings" class="hidden">
+<div class="panel"><h3>Joueuses</h3><div id="playersEdit"></div><button class="primary" id="addPlayer2">+ Ajouter une joueuse</button></div>
+<div class="panel"><h3>Techniques</h3><div id="techEdit"></div><button class="primary" id="addTech">+ Ajouter une technique</button></div>
+</section>
+</div>
+
+<script>
+const KEY="volleyballStatsPWA_v1";
+let state=JSON.parse(localStorage.getItem(KEY)||"null")||{
+ players:Array.from({length:12},(_,i)=>"Joueuse "+(i+1)),
+ techs:["Service","Réception","Attaque","Bloc","Défense"],
+ data:[],
+ sessionName:"Nouvelle séance", history:[]
+};
+function ensure(){state.data=state.players.map((_,i)=>state.techs.map((_,j)=>Number.isFinite(state.data?.[i]?.[j])?state.data[i][j]:0))}
+ensure(); save();
+const $=s=>document.querySelector(s);
+function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function totalPlayer(i){return state.data[i].reduce((a,b)=>a+b,0)}
+function totalTech(j){return state.data.reduce((s,r)=>s+r[j],0)}
+function teamTotal(){return state.data.flat().reduce((a,b)=>a+b,0)}
+
+function render(){
+ ensure();
+ $("#sessionName").value=state.sessionName;
+ $("#head").innerHTML="<th>Joueuse</th>"+state.techs.map(t=>"<th>"+esc(t)+"</th>").join("")+"<th>Total</th>";
+ $("#body").innerHTML=state.players.map((p,i)=>"<tr><td class='player'>"+esc(p)+"</td>"+
+ state.techs.map((_,j)=>"<td><div class='num'>"+state.data[i][j]+"</div><div class='mini'><button data-i='"+i+"' data-j='"+j+"' data-d='-1'>−</button><button class='primary' data-i='"+i+"' data-j='"+j+"' data-d='1'>+</button></div></td>").join("")+
+ "<td class='total'>"+totalPlayer(i)+"</td></tr>").join("");
+ document.querySelectorAll("#body [data-d]").forEach(b=>b.addEventListener("click",()=>{state.data[+b.dataset.i][+b.dataset.j]+=+b.dataset.d;save();render();}));
+ renderSummary();renderSettings();renderHistory();
+}
+function renderSummary(){
+ $("#cards").innerHTML="<div class='card'><div class='small'>TOTAL ÉQUIPE</div><div class='big'>"+teamTotal()+"</div></div><div class='card'><div class='small'>JOUEUSES</div><div class='big'>"+state.players.length+"</div></div><div class='card'><div class='small'>TECHNIQUES</div><div class='big'>"+state.techs.length+"</div></div><div class='card'><div class='small'>SÉANCE</div><div class='big' style='font-size:16px'>"+esc(state.sessionName)+"</div></div>";
+ $("#techTotals").innerHTML=state.techs.map((t,j)=>"<div class='row'><span>"+esc(t)+"</span><strong>"+totalTech(j)+"</strong></div>").join("")+"<div class='row'><strong>Total équipe</strong><strong>"+teamTotal()+"</strong></div>";
+ $("#playerTotals").innerHTML=state.players.map((p,i)=>"<div class='row'><span>"+esc(p)+"</span><strong>"+totalPlayer(i)+"</strong></div>").join("");
+}
+function renderSettings(){
+ $("#playersEdit").innerHTML=state.players.map((p,i)=>"<div class='edit'><input value='"+esc(p)+"' data-p='"+i+"'><button class='danger' data-rp='"+i+"'>Supprimer</button></div>").join("");
+ $("#techEdit").innerHTML=state.techs.map((t,j)=>"<div class='edit'><input value='"+esc(t)+"' data-t='"+j+"'><button class='danger' data-rt='"+j+"'>Supprimer</button></div>").join("");
+ document.querySelectorAll("[data-p]").forEach(x=>x.addEventListener("change",()=>{state.players[+x.dataset.p]=x.value.trim()||("Joueuse "+(+x.dataset.p+1));save();render()}));
+ document.querySelectorAll("[data-t]").forEach(x=>x.addEventListener("change",()=>{state.techs[+x.dataset.t]=x.value.trim()||("Technique "+(+x.dataset.t+1));save();render()}));
+ document.querySelectorAll("[data-rp]").forEach(b=>b.addEventListener("click",()=>{if(state.players.length===1)return;state.players.splice(+b.dataset.rp,1);state.data.splice(+b.dataset.rp,1);save();render()}));
+ document.querySelectorAll("[data-rt]").forEach(b=>b.addEventListener("click",()=>{if(state.techs.length===1)return;let j=+b.dataset.rt;state.techs.splice(j,1);state.data.forEach(r=>r.splice(j,1));save();render()}));
+}
+function renderHistory(){
+ $("#history").innerHTML=state.history.length?state.history.map((h,i)=>"<div class='row'><div><strong>"+esc(h.name)+"</strong><div class='small'>"+esc(h.date)+" • Total "+h.total+"</div></div><button data-load='"+i+"'>Charger</button></div>").join(""):"<div class='small'>Aucune séance sauvegardée.</div>";
+ document.querySelectorAll("[data-load]").forEach(b=>b.addEventListener("click",()=>{let h=state.history[+b.dataset.load];state.sessionName=h.name;state.players=h.players;state.techs=h.techs;state.data=h.data;save();showTab("stats");render()}));
+}
+function saveCurrent(){ensure();let existing=state.history.findIndex(h=>h.id===state.currentId);let h={id:state.currentId||Date.now(),name:state.sessionName||"Séance sans nom",date:new Date().toLocaleString("fr-CA"),total:teamTotal(),players:structuredClone(state.players),techs:structuredClone(state.techs),data:structuredClone(state.data)};if(existing>=0)state.history[existing]=h;else state.history.unshift(h);state.currentId=h.id;save()}
+function newSession(){saveCurrent();state.sessionName="Nouvelle séance";state.currentId=Date.now();state.data=state.players.map(()=>state.techs.map(()=>0));save();render();showTab("stats")}
+function showTab(name){["stats","summary","sessions","settings"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==name));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("primary",b.dataset.tab===name))}
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+$("#sessionName").addEventListener("change",()=>{state.sessionName=$("#sessionName").value||"Séance";save();render()});
+$("#newSession").addEventListener("click",newSession);
+$("#reset").addEventListener("click",()=>{if(confirm("Remettre toutes les statistiques de la séance à zéro?")){state.data=state.players.map(()=>state.techs.map(()=>0));save();render()}});
+function addPlayer(){state.players.push("Joueuse "+(state.players.length+1));state.data.push(state.techs.map(()=>0));save();render()}
+$("#addPlayer").addEventListener("click",addPlayer);$("#addPlayer2").addEventListener("click",addPlayer);
+$("#addTech").addEventListener("click",()=>{state.techs.push("Technique "+(state.techs.length+1));state.data.forEach(r=>r.push(0));save();render()});
+if("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(()=>{});
+render();
+</script>
+</body>
+</html>
